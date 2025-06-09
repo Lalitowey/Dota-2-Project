@@ -12,7 +12,7 @@ import { LayoutDashboard, Users, Swords /* Add other icons as needed */ } from '
 const navItems = [
   { label: 'Dashboard', path: '/', icon: LayoutDashboard }, // Assuming '/' is your main dashboard
   { label: 'Players', path: '/players', icon: Users },
-  { label: 'Heroes', path: '/heroes', icon: Swords },
+  { label: 'heroes', path: '/heroes', icon: Swords },
 ];
 </script>
 
