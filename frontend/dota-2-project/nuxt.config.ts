@@ -13,10 +13,11 @@ export default defineNuxtConfig({
     ],
   },
 
-  modules: [
-      'shadcn-nuxt',
-      '@pinia/nuxt'
-  ],
+  modules: ['shadcn-nuxt', '@pinia/nuxt', '@nuxtjs/color-mode', "@nuxtjs/color-mode"],
+
+  colorMode: {
+    classSuffix: '',
+  },
 
   shadcn: {
     /**
