@@ -13,10 +13,16 @@ export default defineNuxtConfig({
     ],
   },
 
-  modules: ['shadcn-nuxt', '@pinia/nuxt', '@nuxtjs/color-mode', "@nuxtjs/color-mode"],
+  modules: ['shadcn-nuxt', '@pinia/nuxt', "@nuxtjs/color-mode"],
 
   colorMode: {
     classSuffix: '',
+  },
+
+  runtimeConfig: {
+    public: {
+      apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'
+    }
   },
 
   shadcn: {
