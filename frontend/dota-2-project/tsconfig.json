@@ -1,4 +1,22 @@
 {
   // https://nuxt.com/docs/guide/concepts/typescript
-  "extends": "./.nuxt/tsconfig.json"
+  "extends": "./.nuxt/tsconfig.json", // Keep this! It's important for Nuxt.
+
+  "compilerOptions": {
+    // "baseUrl": "."
+    // baseUrl is usually inherited from ./.nuxt/tsconfig.json which sets it to ".." relative to .nuxt/
+    // so it effectively points to your project root. If you still have issues, you can explicitly set it here.
+
+    "paths": {
+      // This tells TypeScript how to resolve paths starting with "@/"
+      // It should point to your project root (where 'components', 'lib', etc. live)
+      "@/*": ["./*"]
+
+      // While the above should work, being more specific can sometimes help IDEs
+      // and ensure there's no ambiguity, especially if .nuxt/tsconfig.json has conflicting generic aliases.
+      // If the general "@/*": ["./*"] alone doesn't fix it after a restart, try these:
+      // "@/components/*": ["./components/*"],
+      // "@/lib/*": ["./lib/*"]
+    }
+  }
 }
