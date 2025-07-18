@@ -9,6 +9,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+
+import { useHeroStore } from '@/stores/heroStore'; // Assuming you have a store for hero data
+
 
 // Define an interface for the expected player data structure (same as before)
 interface PlayerProfile {
@@ -32,6 +36,17 @@ interface PlayerData {
   profile: PlayerProfile | null; // Allow profile to be null initially or on error
 }
 
+interface PlayerHeroStat {
+  hero_id: number;
+  last_played: number;
+  games: number;
+  win: number;
+  with_games: number;
+  with_win: number;
+  against_games: number;
+  against_win: number;
+}
+
 interface WinLossData {
   win: number;
   lose: number;
@@ -45,6 +60,7 @@ interface TotalDataEntry {
 
 const route = useRoute();
 const accountId = computed(() => route.params.id as string);
+const heroStore = useHeroStore(); // Assuming you have a hero store to fetch hero data
 
 // Get API base URL from runtime config
 const runtimeConfig = useRuntimeConfig();
@@ -92,6 +108,12 @@ const {data: totalsData, pending: totalsLoading, error: totalsError} = useFetch<
   watch: [accountId],
   default: () => [],
 });
+
+const {data: playerHeroesData, pending: playerHeroesIsLoading, error: playerHeroesError} = useFetch<PlayerHeroStat[]>(() => `${API_BASE_URL}/api/v1/opendota_proxy/players/${accountId.value}/heroes`, {
+  key: `playerPlayedHeroes-${accountId.value}`,
+  watch: [accountId],
+  default: () => [],
+})
 
 // Optional: Watch for errors specifically to log them or show custom messages
 watch(error, (newError) => {
@@ -143,6 +165,11 @@ const formatStatKey = (key: string): string => {
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 };
+
+const topPlayedHeroes = computed(() => {
+  if (!playerHeroesData.value) return [];
+  return [...playerHeroesData.value].sort((a, b) => b.games - a.games).slice(0, 10); // Sort by games played and take top 10
+})
 
 </script>
 
@@ -219,65 +246,109 @@ const formatStatKey = (key: string): string => {
         </CardFooter>
       </Card>
 
-      <div class="grid md:grid-cols-2 gap-6 mt-6">
-      <Card>
-        <CardHeader><CardTitle>Performance Display</CardTitle></CardHeader>
-        <CardContent>
-          <div>
-            <h3>Overall (Parsed Matches)</h3>
-            <div v-if="wlLoading">
-              <Skeleton class="h-4 w-20"/>
-              <Skeleton class="h-4 w-24"/>
-              <Skeleton class="h-4 w-28"/>
-            </div>
-            <div v-else-if="wlError">
-              <p class="text-destructive">Could not load W/L data</p>
-            </div>
-            <div v-else-if="wlData" class="space-y-1">
-              <div class="flex justify-between">Wins: <span class="font-semibold">{{ wlData.win }}</span></div>
-              <div class="flex justify-between">Losses: <span class="font-semibold">{{ wlData.lose }}</span></div>
-              <div class="flex justify-between">Win Rate: <span class="font-semibold">{{ winRate }}</span></div>
-            </div>
-          </div>
+      <div class="flex flex-col md:flex-row gap-6 mt-6">
+        <div class="flex-1 md:w-1/2">
+          <Card class="h-full">
+            <CardHeader><CardTitle>Performance Display</CardTitle></CardHeader>
+            <CardContent>
+              <div>
+                <h3>Overall (Parsed Matches)</h3>
+                <div v-if="wlLoading">
+                  <Skeleton class="h-4 w-20"/>
+                  <Skeleton class="h-4 w-24"/>
+                  <Skeleton class="h-4 w-28"/>
+                </div>
+                <div v-else-if="wlError">
+                  <p class="text-destructive">Could not load W/L data</p>
+                </div>
+                <div v-else-if="wlData" class="space-y-1">
+                  <div class="flex justify-between">Wins: <span class="font-semibold">{{ wlData.win }}</span></div>
+                  <div class="flex justify-between">Losses: <span class="font-semibold">{{ wlData.lose }}</span></div>
+                  <div class="flex justify-between">Win Rate: <span class="font-semibold">{{ winRate }}</span></div>
+                </div>
+              </div>
 
 
-          <div class="mt-6 border-t pt-4">
-            <h3 class="text-md font-semibold mb-3 text-foreground/80">Key Averages (All Time Parsed)</h3>
-            <div v-if="totalsLoading" class="space-y-1">
-              <Skeleton class="h-4 w-full mb-1" v-for="i in 5" :key="`total-skel-${i}`"/>
-            </div>
-            <div v-else-if="totalsError">
-              <p class="text-destructive text-sm">Could not load player totals.</p>
-              <pre v-if="totalsError.data" class="mt-1 text-xs whitespace-pre-wrap">{{JSON.stringify(totalsError.data, null, 2)}}</pre>
-            </div>
-            <div v-else-if="totalsData && totalsData.length > 0" class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
-              <template v-for="statKey in ['kills', 'deaths', 'assists', 'gold_per_min', 'xp_per_min', 'last_hits', 'denies', 'hero_damage', 'tower_damage']" :key="statKey">
-                <template v-if="findTotal(statKey)">
-                  <div class="flex justify-between">
-                    <span>{{ formatStatKey(statKey) }}:</span>
-                    <span class="font-semibold">
-                      {{ calculateAverage(findTotal(statKey)?.sum, findTotal(statKey)?.n, (statKey === 'kills' || statKey === 'deaths' || statKey === 'assists' ? 1 : 0) ) }}
-                      <span v-if="statKey.includes('_per_min')">/min</span>
-                    </span>
-                  </div>
-                </template>
-              </template>
-            </div>
-            <div v-else>
-              <p class="text-muted-foreground text-sm">No aggregated totals data available</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>Most Played Heroes</CardTitle></CardHeader>
-        <CardContent>
-          <p >
-            Hero data will go here
-          </p>
-        </CardContent>
-      </Card>
+              <div class="mt-6 border-t pt-4">
+                <h3 class="text-md font-semibold mb-3 text-foreground/80">Key Averages (All Time Parsed)</h3>
+                <div v-if="totalsLoading" class="space-y-1">
+                  <Skeleton class="h-4 w-full mb-1" v-for="i in 5" :key="`total-skel-${i}`"/>
+                </div>
+                <div v-else-if="totalsError">
+                  <p class="text-destructive text-sm">Could not load player totals.</p>
+                  <pre v-if="totalsError.data" class="mt-1 text-xs whitespace-pre-wrap">{{JSON.stringify(totalsError.data, null, 2)}}</pre>
+                </div>
+                <div v-else-if="totalsData && totalsData.length > 0" class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+                  <template v-for="statKey in ['kills', 'deaths', 'assists', 'gold_per_min', 'xp_per_min', 'last_hits', 'denies', 'hero_damage', 'tower_damage']" :key="statKey">
+                    <template v-if="findTotal(statKey)">
+                      <div class="flex justify-between">
+                        <span>{{ formatStatKey(statKey) }}:</span>
+                        <span class="font-semibold">
+                          {{ calculateAverage(findTotal(statKey)?.sum, findTotal(statKey)?.n, (statKey === 'kills' || statKey === 'deaths' || statKey === 'assists' ? 1 : 0) ) }}
+                          <span v-if="statKey.includes('_per_min')">/min</span>
+                        </span>
+                      </div>
+                    </template>
+                  </template>
+                </div>
+                <div v-else>
+                  <p class="text-muted-foreground text-sm">No aggregated totals data available</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        <div class="flex-1 md:w-1/2">
+          <Card class="h-full">
+            <CardHeader><CardTitle>Most Played Heroes</CardTitle></CardHeader>
+            <CardContent>
+              <div v-if="playerHeroesIsLoading">
+                <Skeleton class="h-8 w-full mb-2" v-for="i in 5" :key="`ph-skel-${i}`"/>
+              </div>
+              <div v-else-if="playerHeroesError">
+                <p class="text-destructive">Could not load most played Heroes.</p>
+              </div>
+              <div v-else-if="topPlayedHeroes && topPlayedHeroes.length > 0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead class="w-[80px]">Icon</TableHead>
+                      <TableHead>Hero</TableHead>
+                      <TableHead class="text-right">Games</TableHead>
+                      <TableHead class="text-right">Win Rate</TableHead>
+                      <TableHead class="text-right hidden sm:table-cell">Last Played</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow v-for="heroStat in topPlayedHeroes" :key="heroStat.hero_id">
+                      <TableCell>
+                        <img
+                          v-if="heroStore.getHeroImageURL(heroStat.hero_id, 'icon')"
+                          :src="heroStore.getHeroImageURL(heroStat.hero_id, 'icon')"
+                          :alt="heroStore.getHeroById(heroStat.hero_id)?.localized_name"
+                          class="h-8 w-auto rounded"
+                        />
+                      </TableCell>
+                      <TableCell class="font-medium">
+                        {{ heroStore.getHeroById(heroStat.hero_id)?.localized_name || `Hero ID: ${heroStat.hero_id}` }}
+                      </TableCell>
+                      <TableCell class="text-right">{{heroStat.games}}</TableCell>
+                      <TableCell class="text-right">
+                        {{ heroStat.games > 0 ? ((heroStat.win / heroStat.games) * 100).toFixed(1) + '%' : 'N/A' }}
+                      </TableCell>
+                      <TableCell class="text-right hidden sm:table-cell">
+                        {{ heroStat.last_played ? new Date(heroStat.last_played * 1000).toLocaleDateString() : 'N/A' }}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+              <div v-else>
+                <p class="text-muted-foreground">No Hero data available</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
     <div v-else class="text-center py-10">
