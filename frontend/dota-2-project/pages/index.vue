@@ -2,7 +2,9 @@
 </script>
 
 <template>
-<h1>Page Title</h1>
+  <div>
+    
+  </div>
 </template>
 
 <style scoped>
