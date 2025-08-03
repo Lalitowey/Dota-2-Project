@@ -130,13 +130,13 @@ async def get_player_heroes_from_opendota(
             raise HTTPException(status_code=500, detail=f"An unexpected error occurred (heroes): {str(e)}")
 
 @app.get("/api/v1/opendota_proxy/constants/heroes")
-async def get_opendota_hero_constants(): # Using a clear, unique function name
+async def get_opendota_hero_constants():
     opendota_api_url = "https://api.opendota.com/api/constants/heroes" # VERIFIED THIS URL IS CORRECT
     async with httpx.AsyncClient() as client:
         try:
             print(f"CONSTANTS PROXY: Proxying request to OpenDota for heroes at URL: {opendota_api_url}")
             response = await client.get(opendota_api_url)
-            response.raise_for_status() # This will raise an error if OpenDota returns 4xx/5xx
+            response.raise_for_status() #
             heroes_data = response.json()
             print("CONSTANTS PROXY: Successfully fetched heroes data from OpenDota")
             return heroes_data
@@ -150,3 +150,19 @@ async def get_opendota_hero_constants(): # Using a clear, unique function name
         except Exception as e:
             print(f"CONSTANTS PROXY: Unexpected error for heroes: {str(e)}")
             raise HTTPException(status_code=500, detail=f"An unexpected error occurred (constants/heroes): {str(e)}")
+
+@app.get("/api/v1/opendota_proxy/search")
+async def get_opendota_players(q: str ):
+    if not q: # If the query is empty, return an empty list
+        return []
+    opendota_api_url = f"https://api.opendota.com/api/search"
+    params = {"q": q} # Use the query parameter to search for players
+    async with httpx.AsyncClient() as client:
+        try:
+            print(f"Proxying SEARCH request for query: '{q}'") # Log the search query
+            response = await client.get(opendota_api_url, params=params) # Pass the query as a parameter
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            print(f"Error during player search '{q}` : {str(e)}")
+            return []
