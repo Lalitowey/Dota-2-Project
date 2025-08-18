@@ -50,17 +50,17 @@ const pageTitle = computed(() => {
     </div>
 
 
-    <div class="flex-1 flex justify-center">
-      <form @submit.prevent="handleSearch" class="relative w-full max-w-md">
-        <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          v-model="searchQuery"
-          type="search"
-          placeholder="Search Player by Account ID..."
-          class="pl-10 w-full h-9"
-        />
-      </form>
-    </div>
+<!--    <div class="flex-1 flex justify-center">-->
+<!--      <form @submit.prevent="handleSearch" class="relative w-full max-w-md">-->
+<!--        <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />-->
+<!--        <Input-->
+<!--          v-model="searchQuery"-->
+<!--          type="search"-->
+<!--          placeholder="Search Player by Account ID..."-->
+<!--          class="pl-10 w-full h-9"-->
+<!--        />-->
+<!--      </form>-->
+<!--    </div>-->
 
 
     <div class="flex-1 flex justify-end items-center gap-2">
