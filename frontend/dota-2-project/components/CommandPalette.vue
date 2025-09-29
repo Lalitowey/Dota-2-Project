@@ -1,20 +1,21 @@
 <script setup lang="ts">
-  import { ref, watch } from 'vue';
+  import { ref, watch, computed } from 'vue';
   import { useRouter } from 'vue-router';
-  import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+  import { CommandDialog, CommandEmpty, CommandGroup, CommandItem, CommandList, CommandShortcut } from '@/components/ui/command';
+  import { Search } from 'lucide-vue-next';
   import { useDebounceFn } from '@vueuse/core'; // For debouncing AI calls.
 
   const props = defineProps<{ open: boolean }>();
   const emit = defineEmits(['update:open']);
   const router = useRouter();
   
-  interface SearchResult {
+  interface SearchResult { // Matches OpenDota search result structure
     account_id: number;
     personaname: string;
     avatarfull: string;
   }
 
-  interface DisplayResult {
+  interface DisplayResult { // For displaying in the command palette
     type: 'player' | 'id';
     id: number;
     name: string;
@@ -22,7 +23,7 @@
   }
 
   const searchQuery = ref('');
-  const searchResults = ref<SearchResult[]>([]);
+  const searchResults = ref<DisplayResult[]>([]); // Results to display
   const isLoading = ref(false);
   const searchError = ref<string | null>(null);
 
@@ -46,7 +47,7 @@
 
       console.log("Search results: ", results);
 
-      DisplayResult.value = results.map(player => ({
+      searchResults.value = results.map(player => ({ 
         type: 'player',
         id: player.account_id,
         name: player.personaname,
@@ -70,16 +71,19 @@
     searchResults.value = [];
     searchError.value = null;
 
-    if (isAccountId.value) {
+    if (newQuery.trim() === '') { // Clear state if query is empty
+      isLoading.value = false;
+      searchResults.value = [];
+    } else if (isAccountId.value) { // Directly navigate if it's an account ID
       isLoading.value = false;
       searchResults.value = [{
         type: 'id',
         id: parseInt(newQuery, 10),
         name: `Account ID: ${newQuery}`
       }];
-    } else if (newQuery.length > 1) {
+    } else if (newQuery.length > 1) { // Only search if query length > 1
       debouncedSearch(newQuery);
-    } else {
+    } else { 
       isLoading.value = false;
       searchResults.value = [];
     }
@@ -94,12 +98,24 @@
 
 <template>
   <CommandDialog :open="props.open" @update:open="(value) => emit('update:open', value)">
-    <CommandInput v-model="searchQuery" placeholder="Search for a player or navigate.."/>
+    <div class="flex h-12 items-center gap-2 border-b px-3">
+      <Search class="size-4 shrink-0 opacity-50" />
+      <input
+        v-model="searchQuery" 
+        placeholder="Search for a player or navigate.."
+        class="flex h-12 w-full rounded-md bg-transparent py-3 text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-muted-foreground"
+        auto-focus
+      />
+    </div>
     <CommandList>
-      <CommandEmpty v-if="isLoading">Searching...</CommandEmpty>
-      <CommandEmpty v-else-if="searchQuery.length > 1 && !isLoading">No results found.</CommandEmpty>
-      <CommandEmpty v-else>Type to search for a player</CommandEmpty>
-      <CommandGroup heading="Navigation">
+      
+      <CommandEmpty v-if="isLoading">Searching for "{{ searchQuery }}"...</CommandEmpty>
+      <CommandEmpty v-else-if="searchError">{{ searchError }}</CommandEmpty>
+      <CommandEmpty v-else-if="searchQuery.length > 1 && !isLoading && searchResults.length === 0">No players found for "{{ searchQuery }}"</CommandEmpty>
+      <CommandEmpty v-else-if="searchQuery.length === 0">Type to search for a player by name or ID</CommandEmpty>
+      <CommandEmpty v-else>Type at least 2 characters to search</CommandEmpty>
+
+      <CommandGroup heading="Navigation" v-show="searchQuery.length === 0">
         <CommandItem value="dashboard" @select = "runCommand(() => router.push('/'))">
           <span>Dashboard</span>
           <CommandShortcut>g d</CommandShortcut>
@@ -114,16 +130,20 @@
         </CommandItem>
       </CommandGroup>
 
-      <CommandGroup>
+      <CommandGroup v-if="searchResults.length > 0" heading="Players">
         <CommandItem
           v-for="player in searchResults"
-          :key="player.account_id"
-          :value="`player-${player.account_id}`"
-          @select="runCommand(() => router.push(`/players/${player.account_id}`))"
+          :key="player.id"
+          value=""
+          @select="runCommand(() => router.push(`/players/${player.id}`))"
         >
           <div class="flex items-center gap-2">
-            <img :src="player.avatarfull" class="h-6 w-6 rounded-full"/>
-            <span>{{ player.personaname}}</span>
+            <img v-if="player.avatar" :src="player.avatar" class="h-6 w-6 rounded-full"/>
+            <div v-else class="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center text-xs">
+              {{ player.name.charAt(0).toUpperCase() }}
+            </div>
+            <span>{{ player.name }}</span>
+            <span v-if="player.type === 'id'" class="text-xs text-gray-500">(Account ID)</span>
           </div>
         </CommandItem>
       </CommandGroup>
