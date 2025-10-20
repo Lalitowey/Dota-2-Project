@@ -1,6 +1,5 @@
-// frontend/dota-2-project/pages/players/[id].vue
 <script setup lang="ts">
-import { computed, watch } from 'vue';
+import { computed, watch, ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 
 // Import your UI components
@@ -11,9 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 
-import { useHeroStore } from '@/stores/heroStore';
-
-
+import { usePlayerData, useHeroData } from '@/composables/useData';
 
 interface PlayerProfile {
   account_id: number;
@@ -33,7 +30,7 @@ interface PlayerData {
   competitive_rank?: number | null;
   rank_tier?: number | null;
   leaderboard_rank?: number | null;
-  profile: PlayerProfile | null; // Allow profile to be null initially or on error
+  profile: PlayerProfile | null;
 }
 
 interface PlayerHeroStat {
@@ -60,62 +57,175 @@ interface TotalDataEntry {
 
 const route = useRoute();
 const accountId = computed(() => route.params.id as string);
-const heroStore = useHeroStore(); // using Hero store to fetch hero images and data
 
-// Get API base URL from runtime config
-const runtimeConfig = useRuntimeConfig();
-const API_BASE_URL = runtimeConfig.public.apiBaseUrl;
+// Use our new composables
+const { fetchPlayerProfile, fetchPlayerWinLoss, fetchPlayerHeroes, fetchPlayerMatches } = usePlayerData();
+const { ensureHeroConstants, getHeroById, getHeroImageURL } = useHeroData();
 
-const {
-  data: playerData, // Will be ref<PlayerData | null>
-  pending: isLoading, // Will be ref<boolean>
-  error, // Will be ref<Error | null>
-  refresh // Function to manually re-fetch
-} = useFetch<PlayerData>(() => `${API_BASE_URL}/api/v1/opendota_proxy/players/${accountId.value}`, {
-  // `key` helps Nuxt manage caching and updates.
-  key: `playerData-${accountId.value}`,
+// Reactive state
+const playerData = ref<PlayerData | null>(null);
+const wlData = ref<WinLossData | null>(null);
+const playerHeroesData = ref<PlayerHeroStat[] | null>(null);
+const totalsData = ref<TotalDataEntry[] | null>(null);
 
-  // `watch: [accountId]` will automatically re-fetch when accountId changes.
-  watch: [accountId],
+const isLoadingProfile = ref(false);
+const wlLoading = ref(false);
+const playerHeroesIsLoading = ref(false);
+const totalsLoading = ref(false);
 
-  // `default` provides an initial value for `data` before the fetch completes.
-  // This helps prevent template errors if you try to access nested properties of playerData too early.
-  default: () => ({
-    profile: null,
-    rank_tier: null,
-    leaderboard_rank: null,
-    competitive_rank: null
-  } as PlayerData),
+const profileError = ref<string | null>(null);
+const wlError = ref<string | null>(null);
+const playerHeroesError = ref<string | null>(null);
+const totalsError = ref<string | null>(null);
 
-  // `transform` allows you to modify the data before it's assigned to `playerData`.
-  // Useful if you need to reshape the API response. Not strictly needed here for direct proxy.
-  // transform: (data) => {
-  //   console.log("Transforming data:", data);
-  //   return data;
-  // }
+// Computed properties
+const isLoading = computed(() => 
+  isLoadingProfile.value || wlLoading.value || playerHeroesIsLoading.value || totalsLoading.value
+);
+
+const error = computed(() => 
+  profileError.value || wlError.value || playerHeroesError.value || totalsError.value
+);
+
+// Data fetching functions
+const loadPlayerData = async () => {
+  if (!accountId.value) return;
+  
+  isLoadingProfile.value = true;
+  profileError.value = null;
+  
+  try {
+    playerData.value = await fetchPlayerProfile(accountId.value);
+  } catch (err: any) {
+    profileError.value = err.message || 'Failed to load player data';
+  } finally {
+    isLoadingProfile.value = false;
+  }
+};
+
+const loadWinLossData = async () => {
+  if (!accountId.value) return;
+  
+  wlLoading.value = true;
+  wlError.value = null;
+  
+  try {
+    wlData.value = await fetchPlayerWinLoss(accountId.value);
+  } catch (err: any) {
+    wlError.value = err.message || 'Failed to load win/loss data';
+  } finally {
+    wlLoading.value = false;
+  }
+};
+
+const loadHeroesData = async () => {
+  if (!accountId.value) return;
+  
+  playerHeroesIsLoading.value = true;
+  playerHeroesError.value = null;
+  
+  try {
+    playerHeroesData.value = await fetchPlayerHeroes(accountId.value);
+  } catch (err: any) {
+    playerHeroesError.value = err.message || 'Failed to load heroes data';
+  } finally {
+    playerHeroesIsLoading.value = false;
+  }
+};
+
+const loadTotalData = async () => {
+  if (!accountId.value) return;
+  
+  totalsLoading.value = true;
+  totalsError.value = null;
+  
+  try {
+    const runtimeConfig = useRuntimeConfig();
+    const API_BASE_URL = runtimeConfig.public.apiBaseUrl;
+    totalsData.value = await $fetch<TotalDataEntry[]>(`${API_BASE_URL}/api/v1/opendota_proxy/players/${accountId.value}/totals`);
+  } catch (err: any) {
+    totalsError.value = err.message || 'Failed to load total stats';
+  } finally {
+    totalsLoading.value = false;
+  }
+};
+
+// Load all data
+const loadAllData = async () => {
+  // Ensure hero constants are loaded first
+  await ensureHeroConstants();
+  
+  // Load all player data in parallel
+  await Promise.all([
+    loadPlayerData(),
+    loadWinLossData(),
+    loadHeroesData(),
+    loadTotalData(),
+  ]);
+};
+
+// Watch for account ID changes
+watch(accountId, () => {
+  if (accountId.value) {
+    loadAllData();
+  }
+}, { immediate: true });
+
+// Initial load
+onMounted(() => {
+  if (accountId.value) {
+    loadAllData();
+  }
 });
 
- // Fetch Win/Loss data using the same pattern
-const {data: wlData, pending: wlLoading, error: wlError} = useFetch<WinLossData>(() => `${API_BASE_URL}/api/v1/opendota_proxy/players/${accountId.value}/wl`, {
-  key: `playerWL-${accountId.value}`,
-  watch: [accountId],
-  default: () => ({ win: 0, lose: 0 }),
-});
+// Helper functions for display
+function formatLastLogin(lastLogin: string | undefined) {
+  if (!lastLogin) return 'Never logged in';
+  return new Date(lastLogin).toLocaleString();
+}
 
-// Fetching player totals from OpenDota API. By default, it will return an empty array if no data is found.
-// Will use this naming scheme for future consistency.
-const {data: totalsData, pending: totalsLoading, error: totalsError} = useFetch<TotalDataEntry[]>(() => `${API_BASE_URL}/api/v1/opendota_proxy/players/${accountId.value}/totals`, {
-  key: `playerTotals-${accountId.value}`,
-  watch: [accountId],
-  default: () => [],
-});
+function getRankDisplay(rankTier: number | null | undefined) {
+  if (!rankTier) return 'Unranked';
+  const tier = rankTier % 10;
+  const rank = Math.floor(rankTier / 10);
+  const ranks = ['Herald', 'Guardian', 'Crusader', 'Archon', 'Legend', 'Ancient', 'Divine', 'Immortal'];
+  return `${ranks[rank - 1]} ${tier}`;
+}
 
-// Fetches player's most played heroes, using
-const {data: playerHeroesData, pending: playerHeroesIsLoading, error: playerHeroesError} = useFetch<PlayerHeroStat[]>(() => `${API_BASE_URL}/api/v1/opendota_proxy/players/${accountId.value}/heroes`, {
-  key: `playerPlayedHeroes-${accountId.value}`,
-  watch: [accountId],
-  default: () => [],
-})
+function calculateWinRate(wins: number, total: number) {
+  if (total === 0) return 0;
+  return ((wins / total) * 100).toFixed(1);
+}
+
+function formatNumber(num: number | undefined) {
+  if (num === undefined) return 'N/A';
+  return num.toLocaleString();
+}
+
+function formatAverage(sum: number, count: number) {
+  if (count === 0) return 'N/A';
+  return (sum / count).toFixed(1);
+}
+
+// Function to calculate average values for stats
+const calculateAverage = (sum?: number, n?: number, fixed: number = 1): string => {
+  if (sum === undefined || n === undefined || n === 0) return 'N/A';
+  return (sum / n).toFixed(fixed);
+};
+
+// Function to format stat keys for display
+const formatStatKey = (key: string): string => {
+  return key
+    .replace(/_/g, ' ')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+const topPlayedHeroes = computed(() => {
+  if (!playerHeroesData.value) return [];
+  return [...playerHeroesData.value].sort((a, b) => b.games - a.games).slice(0, 10);
+});
 
 // Optional: Watch for errors specifically to log them or show custom messages
 watch(error, (newError) => {
@@ -125,7 +235,6 @@ watch(error, (newError) => {
     // or rely on the generic error display in the template.
   }
 });
-
 
 const getRankTierDisplay = (tier?: number | null) => {
   if (tier === null || tier === undefined) return 'N/A';
@@ -150,28 +259,13 @@ const winRate = computed(() => {
 const findTotal = (field: string): TotalDataEntry | undefined => {
   if (!totalsData.value) return undefined;
   return totalsData.value.find(entry => entry.field === field);
-}
-
-// Function to calculate average values for stats
-const calculateAverage = (sum?: number, n?: number, fixed: number = 1): string => {
-  if ( sum === undefined || n === undefined  || n === 0) return 'N/A';
-  return (sum / n).toFixed(fixed);
 };
 
-// Function to format stat keys for display
-const formatStatKey = (key: string): string => {
-  return key
-    .replace(/_/g, ' ')
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+// Create hero store object using the composable
+const heroStore = {
+  getHeroById,
+  getHeroImageURL
 };
-
-const topPlayedHeroes = computed(() => {
-  if (!playerHeroesData.value) return [];
-  return [...playerHeroesData.value].sort((a, b) => b.games - a.games).slice(0, 10); // Sort by games played and take top 10
-})
-
 </script>
 
 <template>
@@ -190,15 +284,10 @@ const topPlayedHeroes = computed(() => {
     </div>
 
     <!-- Error State -->
-    <!-- The `error` object from useFetch can be complex.
-         `error.value?.data?.detail` might contain your FastAPI error message.
-         `error.value?.message` is a more generic message.
-    -->
     <Alert v-else-if="error" variant="destructive">
       <AlertTitle>Error Fetching Player Data</AlertTitle>
       <AlertDescription>
-        {{ error.data?.detail || error.message || 'An unknown error occurred.' }}
-        <pre v-if="error.data" class="mt-2 text-xs whitespace-pre-wrap">{{ JSON.stringify(error.data, null, 2) }}</pre>
+        {{ error }}
       </AlertDescription>
     </Alert>
 
@@ -274,7 +363,7 @@ const topPlayedHeroes = computed(() => {
             </div>
             <div v-else-if="totalsError">
               <p class="text-destructive text-sm">Could not load player totals.</p>
-              <pre v-if="totalsError.data" class="mt-1 text-xs whitespace-pre-wrap">{{JSON.stringify(totalsError.data, null, 2)}}</pre>
+              <pre v-if="totalsError" class="mt-1 text-xs whitespace-pre-wrap">{{ totalsError }}</pre>
             </div>
             <div v-else-if="totalsData && totalsData.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1.5 text-sm">
               <template v-for="statKey in ['kills', 'deaths', 'assists', 'gold_per_min', 'xp_per_min', 'last_hits', 'denies', 'hero_damage', 'tower_damage']" :key="statKey">
