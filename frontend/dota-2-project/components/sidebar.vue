@@ -6,13 +6,15 @@
 import { Button } from '@/components/ui/button';
 
 // Import icons from lucide-vue-next
-import { LayoutDashboard, Users, Swords /* Add other icons as needed */ } from 'lucide-vue-next';
+import { LayoutDashboard, Users, Swords, History, Settings /* Add other icons as needed */ } from 'lucide-vue-next';
 
 // Define your navigation items for Dota 2
 const navItems = [
   { label: 'Dashboard', path: '/', icon: LayoutDashboard }, // Assuming '/' is your main dashboard
   { label: 'Players', path: '/players', icon: Users },
-  { label: 'heroes', path: '/heroes', icon: Swords },
+  { label: 'Heroes', path: '/heroes', icon: Swords },
+  { label: 'Match History', path: '/match-history', icon: History },
+  { label: 'Cache Management', path: '/cache-management', icon: Settings },
 ];
 </script>
 
