@@ -44,10 +44,10 @@ const pageTitle = computed(() => {
 </script>
 
 <template>
-  <header class="h-16 border-b bg-background flex items-center px-4 md:px-6 sticky top-0 z-30">
-    <div class="flex-1">
+  <header class="h-16 bg-background flex items-center px-4 md:px-6 sticky top-0 z-30">
+    <!-- <div class="flex-1">
       <h1 class="text-lg font-semibold text-foreground">{{ pageTitle }}</h1>
-    </div>
+    </div> -->
 
 
 <!--    <div class="flex-1 flex justify-center">-->
