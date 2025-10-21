@@ -65,7 +65,7 @@ export const useCacheStore = defineStore('cacheStore', {
         return this.cache.get(key)?.data as T;
       }
 
-      // Try localStorage
+      // Try localStorage -- will survive page refresh 
       try {
         const stored = localStorage.getItem(`cache:${key}`);
         if (stored) {
@@ -89,15 +89,15 @@ export const useCacheStore = defineStore('cacheStore', {
       } catch (error) {
         console.error(`Error reading cache for ${key}:`, error);
       }
-
       return null;
     },
 
     // Set cached data
-    set<T>(type: string, data: T, params: Record<string, any> = {}): void {
-      if (process.server) return;
+    set<T>(type: string, data: T, params: Record<string, any> = {}, customTTL?: number): void {
+      if (process) return;
 
       const config = DEFAULT_CACHE_CONFIGS[type];
+      const ttl = customTTL || config.ttl; 
       if (!config) {
         console.warn(`No cache config found for type: ${type}`);
         return;
@@ -128,7 +128,7 @@ export const useCacheStore = defineStore('cacheStore', {
       const key = this.generateKey(type, params);
       this.cache.delete(key);
       
-      if (!process.server) {
+      if (!process) {
         localStorage.removeItem(`cache:${key}`);
         console.log(`Cache cleared: ${key}`);
       }
@@ -138,7 +138,7 @@ export const useCacheStore = defineStore('cacheStore', {
     clearAll(): void {
       this.cache.clear();
       
-      if (!process.server) {
+      if (!process) {
         // Clear all cache items from localStorage
         const keys = Object.keys(localStorage).filter(key => key.startsWith('cache:'));
         keys.forEach(key => localStorage.removeItem(key));
@@ -158,7 +158,7 @@ export const useCacheStore = defineStore('cacheStore', {
       }
 
       // Clean localStorage cache
-      if (!process.server) {
+      if (!process) {
         const keys = Object.keys(localStorage).filter(key => key.startsWith('cache:'));
         keys.forEach(key => {
           try {
@@ -180,7 +180,7 @@ export const useCacheStore = defineStore('cacheStore', {
       let localStorageItems = 0;
       let totalSize = 0;
 
-      if (!process.server) {
+      if (!process) {
         const keys = Object.keys(localStorage).filter(key => key.startsWith('cache:'));
         localStorageItems = keys.length;
         totalSize = keys.reduce((size, key) => {
