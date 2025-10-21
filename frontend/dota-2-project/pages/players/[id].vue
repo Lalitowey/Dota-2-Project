@@ -60,7 +60,7 @@ const accountId = computed(() => route.params.id as string);
 
 // Use our new composables
 const { fetchPlayerProfile, fetchPlayerWinLoss, fetchPlayerHeroes, fetchPlayerMatches } = usePlayerData();
-const { ensureHeroConstants, getHeroById, getHeroImageURL } = useHeroData();
+const { getHeroById, getHeroImageURL } = useHeroData();
 
 // Reactive state
 const playerData = ref<PlayerData | null>(null);
@@ -152,9 +152,9 @@ const loadTotalData = async () => {
 
 // Load all data
 const loadAllData = async () => {
-  // Ensure hero constants are loaded first
-  await ensureHeroConstants();
-  
+  // Hero constants are loaded by the loadHeroConstants plugin on app start
+  // No need to explicitly fetch them here - the heroStore handles caching and lazy loading
+
   // Load all player data in parallel
   await Promise.all([
     loadPlayerData(),
