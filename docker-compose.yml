@@ -2,43 +2,49 @@ version: '3.8'
 
 services:
   backend:
-    build: ./backend # Path to the directory containing the backend Dockerfile
+    build: ./backend
     ports:
-      - "8001:8000" # Map host port 8001 to container port 8000 (avoid conflict if you run other things on 8000)
+      - "8000:8000"  # Backend API on port 8000
     volumes:
-      - ./backend/app:/code/app # Mount local code into container for hot-reloading
+      - ./backend/app:/code/app  # Mount local code for hot-reloading
     environment:
-      # Pass database connection details as environment variables
       - DATABASE_URL=postgresql://dota_user:dota_password@db:5432/dota_db
+      - DEBUG=True
+      - LOG_LEVEL=INFO
     depends_on:
-      - db # Ensure DB starts before the backend
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload # Override CMD for development reload
+      - db
+    command: uvicorn app.main_new:app --host 0.0.0.0 --port 8000 --reload
 
   frontend:
-    build: ./frontend
+    build: ./frontend/dota-2-project
     ports:
-      - "3000:80" # Map host port 3000 to container port 80 (Nginx default)
+      - "3000:3000"  # Nuxt dev server on port 3000
     volumes:
-      - ./frontend/src:/app/src # Mount source code for React hot-reloading (if dev server used)
-      # Note: For Nginx serving build files, volume mounting the build output isn't standard practice for production builds,
-      # but mounting src is common for development servers (like `npm start`).
-      # The Dockerfile above uses a production build served by Nginx.
-      # For React's dev server (npm start), the Dockerfile and command would be different.
-      # Let's stick with the Nginx build approach for now, it's simpler to start.
+      - ./frontend/dota-2-project:/app  # Mount entire Nuxt project
+      - /app/node_modules  # Prevent overwriting node_modules
+      - /app/.nuxt  # Prevent overwriting .nuxt build directory
+    environment:
+      - NUXT_PUBLIC_API_BASE_URL=http://localhost:8000
     depends_on:
-      - backend # Optional: Ensures backend might be ready first, though not strictly necessary for API calls
+      - backend
+    command: bun run dev --host 0.0.0.0
 
   db:
-    image: postgres:15-alpine # Use official Postgres image
+    image: postgres:15-alpine
     volumes:
-      - postgres_data:/var/lib/postgresql/data/ # Persist database data
+      - postgres_data:/var/lib/postgresql/data/
     environment:
-      # These MUST match the user/password/db in DATABASE_URL for the backend
       - POSTGRES_USER=dota_user
       - POSTGRES_PASSWORD=dota_password
       - POSTGRES_DB=dota_db
     ports:
-      - "5432:5432" # Map host port 5432 to container port 5432 (use different host port if 5432 is taken)
+      - "5432:5432"  # PostgreSQL on port 5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dota_user -d dota_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
-  postgres_data: # Define the named volume for data persistence
+  postgres_data:
+    driver: local
